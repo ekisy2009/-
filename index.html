@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RestoPro — ניהול מסעדה חכם</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+/* ═══════ DESIGN TOKENS ═══════ */
+:root {
+  --bg:       #F7F7F8;
+  --surface:  #FFFFFF;
+  --sidebar:  #111318;
+  --border:   #E8E8EC;
+  --text:     #18181B;
+  --text2:    #52525B;
+  --text3:    #A1A1AA;
+  --gold:     #F59E0B;
+  --gold-d:   #D97706;
+  --gold-bg:  #FFFBEB;
+  --green:    #10B981;
+  --green-bg: #ECFDF5;
+  --red:      #EF4444;
+  --red-bg:   #FEF2F2;
+  --blue:     #3B82F6;
+  --blue-bg:  #EFF6FF;
+  --r:        10px;
+  --r-lg:     16px;
+  --sh:       0 1px 4px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md:    0 4px 20px rgba(0,0,0,.09);
+  --sh-lg:    0 16px 48px rgba(0,0,0,.14);
+  --sw:       240px;
+  --th:       58px;
+  --font:     'Heebo', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body { font-family: var(--font); background: var(--bg); color: var(--text);
+       direction: rtl; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+
+/* ═══════ LAYOUT ═══════ */
+.wrap { display: flex; min-height: 100vh; }
+.main { margin-right: var(--sw); flex: 1; display: flex; flex-direction: column; }
+
+/* ═══════ SIDEBAR ═══════ */
+.sb {
+  width: var(--sw); background: var(--sidebar);
+  position: fixed; right: 0; top: 0; bottom: 0;
+  display: flex; flex-direction: column; z-index: 200;
+}
+/* golden glow at top */
+.sb::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:120px;
+  background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(245,158,11,.22), transparent);
+  pointer-events: none;
+}
+
+/* Brand */
+.sb-brand { padding: 22px 18px 16px; border-bottom: 1px solid rgba(255,255,255,.07); position: relative; z-index: 1; }
+.sb-logo  { display:flex; align-items:center; gap:10px; }
+.sb-icon  {
+  width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--gold), #FCD34D);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; box-shadow: 0 3px 10px rgba(245,158,11,.4);
+}
+.sb-name  { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -.2px; }
+.sb-name  span { color: var(--gold); }
+.sb-tag   { font-size: .62rem; color: rgba(255,255,255,.35); text-transform: uppercase; letter-spacing: .7px; margin-top: 1px; }
+
+/* Nav */
+.sb-nav { padding: 12px 8px; flex: 1; overflow-y: auto; }
+.sb-sec { font-size: .6rem; font-weight: 700; color: rgba(255,255,255,.25);
+          text-transform: uppercase; letter-spacing: 1.1px; padding: 10px 12px 4px; margin-top: 6px; }
+.sb-btn {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 10px 12px; border-radius: 8px;
+  color: rgba(255,255,255,.52); font-size: .855rem; font-weight: 500;
+  font-family: var(--font); background: none; border: none;
+  cursor: pointer; text-align: right; transition: all .16s; margin-bottom: 1px;
+}
+.sb-btn:hover  { background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); }
+.sb-btn.active { background: var(--gold); color: #111; font-weight: 700;
+                 box-shadow: 0 3px 10px rgba(245,158,11,.38); }
+.sb-ico { font-size: .9rem; width: 18px; text-align: center; flex-shrink: 0; }
+
+/* Footer */
+.sb-foot { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.07); display:flex; align-items:center; gap:8px; }
+.api-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.18); flex-shrink:0; }
+.api-dot.ok { background: var(--green); box-shadow: 0 0 7px rgba(16,185,129,.7); animation: blink 2s infinite; }
+.api-lbl { font-size: .7rem; color: rgba(255,255,255,.38); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+/* ═══════ TOPBAR ═══════ */
+.topbar {
+  height: var(--th); background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 26px; display: flex; align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 100; box-shadow: var(--sh);
+}
+.tb-crumb { font-size: .77rem; color: var(--text3); display:flex; align-items:center; gap:5px; }
+.tb-crumb b { color: var(--text); font-weight: 700; }
+.tb-date  { font-size: .73rem; color: var(--text3); background: var(--bg);
+            padding: 4px 11px; border-radius: 20px; border: 1px solid var(--border); }
+
+/* ═══════ PAGE BODY ═══════ */
+.body { padding: 24px 26px; flex: 1; }
+.page { display:none; }
+.page.active { display:block; animation: fadeUp .2s ease; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:none} }
+
+/* ═══════ PAGE HEADER ═══════ */
+.ph { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
+.ph-t { font-size: 1.5rem; font-weight: 800; letter-spacing: -.4px; }
+.ph-s { font-size: .8rem; color: var(--text2); margin-top:3px; }
+.ph-r { display:flex; gap:7px; }
+
+/* ═══════ BUTTONS ═══════ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 17px; border-radius: var(--r);
+  font-size: .83rem; font-weight: 600; cursor: pointer;
+  font-family: var(--font); border: none; white-space: nowrap; transition: all .16s;
+}
+.btn-gold  { background: var(--gold); color: #111; box-shadow: 0 2px 8px rgba(245,158,11,.3); }
+.btn-gold:hover { background: var(--gold-d); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(245,158,11,.4); }
+.btn-out   { background: transparent; color: var(--text2); border: 1.5px solid var(--border); }
+.btn-out:hover   { border-color: var(--text3); background: var(--bg); }
+.btn-ghost { background: transparent; color: var(--text3); padding: 7px 10px; }
+.btn-ghost:hover { background: var(--bg); color: var(--text); }
+.btn-red   { background: transparent; color: var(--red); border: 1.5px solid #FECACA; }
+.btn-red:hover   { background: var(--red-bg); }
+.btn-sm    { padding: 6px 11px; font-size: .76rem; }
+.btn:disabled { opacity: .4; cursor: not-allowed; transform: none !important; }
+
+/* spinner */
+.spin { width:14px;height:14px; border:2px solid rgba(0,0,0,.15); border-top-color: #111;
+        border-radius:50%; animation:rot .6s linear infinite; display:none; flex-shrink:0; }
+.btn.loading .spin { display:block; }
+.btn.loading .lbl  { opacity:.65; }
+@keyframes rot { to{transform:rotate(360deg)} }
+
+/* ═══════ KPI STRIP ═══════ */
+.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+.kpi  {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 17px 19px;
+  box-shadow: var(--sh); transition: all .18s; position:relative; overflow:hidden;
+}
+.kpi:hover { transform:translateY(-2px); box-shadow:var(--sh-md); }
+.kpi-bar { position:absolute; bottom:0;left:0;right:0;height:3px; }
+.kpi-bar.gold  { background:linear-gradient(90deg,var(--gold),#FDE68A); }
+.kpi-bar.green { background:linear-gradient(90deg,var(--green),#6EE7B7); }
+.kpi-bar.red   { background:linear-gradient(90deg,var(--red),#FCA5A5); }
+.kpi-bar.blue  { background:linear-gradient(90deg,var(--blue),#93C5FD); }
+.kpi-icon  { font-size:1.35rem; margin-bottom:8px; }
+.kpi-val   { font-size:1.7rem; font-weight:800; letter-spacing:-.4px; line-height:1; }
+.kpi-label { font-size:.74rem; color:var(--text2); margin-top:4px; font-weight:500; }
+.kpi-sub   { display:inline-block; margin-top:7px; padding:2px 9px; border-radius:20px; font-size:.67rem; font-weight:700; }
+.ks-gold   { background:var(--gold-bg); color:var(--gold-d); }
+.ks-green  { background:var(--green-bg); color:#059669; }
+.ks-red    { background:var(--red-bg); color:#DC2626; }
+.ks-blue   { background:var(--blue-bg); color:#2563EB; }
+
+/* ═══════ CARD ═══════ */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--sh); }
+.card-hd  { padding:14px 17px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.card-hd-t { font-size:.8rem; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:6px; }
+.card-body { padding:16px; }
+
+/* ═══════ GRIDS ═══════ */
+.g2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px; }
+
+/* ═══════ TABLE CARD ═══════ */
+.tbl-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--sh); overflow:hidden; }
+.tbl-top  { padding:13px 17px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.tbl-title { font-weight:700; font-size:.9rem; }
+.tbl-filters { display:flex; gap:7px; flex-wrap:wrap; }
+
+.fi { background:var(--bg); border:1.5px solid var(--border); border-radius:var(--r); padding:7px 11px;
+      font-size:.79rem; color:var(--text); font-family:var(--font); outline:none; transition:all .16s; direction:rtl; }
+.fi:focus { border-color:var(--gold); background:var(--surface); box-shadow:0 0 0 3px rgba(245,158,11,.1); }
+.fi::placeholder { color:var(--text3); }
+
+table { width:100%; border-collapse:collapse; font-size:.83rem; }
+thead th { padding:10px 14px; text-align:right; font-size:.68rem; font-weight:700; color:var(--text3);
+           text-transform:uppercase; letter-spacing:.4px; background:var(--bg); border-bottom:1px solid var(--border); white-space:nowrap; }
+tbody td  { padding:11px 14px; border-bottom:1px solid #F4F4F5; color:var(--text2); vertical-align:middle; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover td { background:#FAFAFA; }
+.amt { font-weight:700; color:var(--text); }
+
+/* ═══════ TAGS ═══════ */
+.tag { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:.69rem; font-weight:600; }
+.tag-v { background:#D1FAE5; color:#065F46; }
+.tag-m { background:#FEE2E2; color:#991B1B; }
+.tag-d { background:#DBEAFE; color:#1D4ED8; }
+.tag-l { background:#FEF3C7; color:#92400E; }
+.tag-o { background:#F4F4F5; color:var(--text2); }
+
+.stag { padding:3px 9px; border-radius:6px; font-size:.69rem; font-weight:700; }
+.st-draft    { background:#FEF9C3; color:#713F12; }
+.st-sent     { background:#DBEAFE; color:#1D4ED8; }
+.st-received { background:#D1FAE5; color:#065F46; }
+
+/* ═══════ ICON BUTTONS ═══════ */
+.ib { width:28px;height:28px; border-radius:7px; border:1px solid var(--border);
+      background:transparent; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+      font-size:.8rem; transition:all .15s; margin-left:2px; }
+.ib:hover { background:var(--bg); border-color:var(--text3); }
+.ib.del:hover { background:var(--red-bg); border-color:#FECACA; }
+
+/* ═══════ MODAL ═══════ */
+.overlay { position:fixed; inset:0; background:rgba(17,19,24,.55); backdrop-filter:blur(4px);
+           z-index:500; display:flex; align-items:center; justify-content:center; padding:14px;
+           opacity:0; pointer-events:none; transition:opacity .18s; }
+.overlay.open { opacity:1; pointer-events:all; }
+.modal { background:var(--surface); border-radius:var(--r-lg); box-shadow:var(--sh-lg);
+         width:100%; max-width:500px; max-height:92vh; overflow-y:auto;
+         transform:translateY(10px) scale(.98); transition:transform .2s; }
+.overlay.open .modal { transform:none; }
+.modal.lg { max-width:590px; }
+.m-hd { padding:19px 21px 15px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.m-title { font-size:.98rem; font-weight:800; }
+.m-x  { width:29px;height:29px;border-radius:7px;border:none;background:var(--bg);cursor:pointer;
+         font-size:1rem;display:flex;align-items:center;justify-content:center;color:var(--text2); transition:background .14s; }
+.m-x:hover { background:var(--border); }
+.m-body { padding:19px 21px; }
+.m-foot { padding:13px 21px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:7px; }
+
+/* ═══════ FORM ═══════ */
+.fg   { margin-bottom:13px; }
+.fr   { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+.fl   { display:block; font-size:.77rem; font-weight:600; color:var(--text2); margin-bottom:5px; }
+.fl .r{ color:var(--red); margin-right:1px; }
+.fc   { width:100%; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--r);
+        padding:9px 12px; font-size:.865rem; color:var(--text); font-family:var(--font);
+        outline:none; transition:all .16s; direction:rtl; }
+.fc:focus { border-color:var(--gold); background:var(--surface); box-shadow:0 0 0 3px rgba(245,158,11,.1); }
+.fc::placeholder { color:var(--text3); }
+
+/* ═══════ UPLOAD ZONE ═══════ */
+.upz { border:2px dashed var(--border); border-radius:var(--r-lg); padding:22px 18px;
+       text-align:center; cursor:pointer; background:var(--bg); transition:all .18s; position:relative; overflow:hidden; }
+.upz:hover { border-color:var(--gold); background:rgba(245,158,11,.04); }
+.upz input { position:absolute;inset:0;opacity:0;cursor:pointer; }
+.upz-i { font-size:1.7rem; margin-bottom:6px; }
+.upz-t { font-size:.82rem; color:var(--text3); }
+.upz-cta { font-size:.78rem; color:var(--gold); font-weight:700; margin-top:2px; }
+
+/* ═══════ AI ITEM ROW ═══════ */
+.ai-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr auto; gap:5px; margin-bottom:6px;
+          align-items:center; padding:8px 10px; background:var(--bg); border-radius:var(--r); border:1px solid var(--border); }
+
+/* ═══════ ORDER CARDS ═══════ */
+.ord-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+.ord-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 17px; box-shadow:var(--sh); transition:all .18s; }
+.ord-card:hover { transform:translateY(-2px); box-shadow:var(--sh-md); }
+.ord-top  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:11px; }
+.ord-sup  { font-weight:800; font-size:.93rem; }
+.ord-dt   { font-size:.71rem; color:var(--text3); margin-top:2px; }
+.ord-line { display:flex; justify-content:space-between; font-size:.79rem; color:var(--text2);
+            padding:4px 0; border-bottom:1px dashed #EFEFEF; }
+.ord-line:last-child { border-bottom:none; }
+.ord-total { display:flex; justify-content:space-between; align-items:center;
+             margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.ord-tl { font-size:.71rem; font-weight:600; color:var(--text3); }
+.ord-tv { font-size:.97rem; font-weight:800; }
+.ord-acts { display:flex; gap:5px; margin-top:11px; }
+
+/* ═══════ SUPPLIER CARDS ═══════ */
+.sup-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
+.sup-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh); transition:all .18s; }
+.sup-card:hover { transform:translateY(-2px); box-shadow:var(--sh-md); }
+.sup-av   { width:42px;height:42px;border-radius:10px; background:linear-gradient(135deg,var(--gold),#FDE68A);
+            display:flex;align-items:center;justify-content:center;font-size:1.2rem; margin-bottom:12px;
+            box-shadow:0 3px 10px rgba(245,158,11,.25); }
+.sup-name { font-size:.94rem; font-weight:800; }
+.sup-meta { font-size:.74rem; color:var(--text3); margin-top:2px; }
+.sup-tot  { display:flex; justify-content:space-between; align-items:center;
+            margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+.sup-tl   { font-size:.69rem; font-weight:600; color:var(--text3); }
+.sup-tv   { font-size:.86rem; font-weight:800; color:var(--green); }
+.sup-acts { display:flex; gap:5px; margin-top:11px; }
+
+/* ═══════ SETTINGS ═══════ */
+.set-wrap { max-width:540px; }
+.set-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+            padding:19px 21px; box-shadow:var(--sh); margin-bottom:13px; }
+.set-ct { font-size:.86rem; font-weight:800; margin-bottom:3px; display:flex; align-items:center; gap:6px; }
+.set-cd { font-size:.75rem; color:var(--text3); margin-bottom:13px; }
+.toast  { display:inline-flex; align-items:center; gap:5px; background:var(--green-bg); color:#059669;
+          border:1px solid #A7F3D0; padding:6px 12px; border-radius:8px; font-size:.75rem; font-weight:600;
+          margin-top:8px; opacity:0; transition:opacity .22s; }
+.toast.show { opacity:1; }
+
+/* ═══════ API BANNER ═══════ */
+.banner { background:var(--gold-bg); border:1px solid #FDE68A; border-radius:var(--r-lg);
+          padding:10px 15px; margin-bottom:18px; display:flex; align-items:center; gap:10px;
+          font-size:.79rem; color:#78350F; }
+.banner a { color:var(--gold-d); font-weight:700; cursor:pointer; }
+
+/* ═══════ EMPTY STATE ═══════ */
+.empty { text-align:center; padding:50px 16px; color:var(--text3); }
+.empty-i { font-size:2.3rem; display:block; margin-bottom:11px; opacity:.5; }
+.empty-t { font-size:.94rem; font-weight:700; color:var(--text2); margin-bottom:5px; }
+.empty-s { font-size:.79rem; margin-bottom:15px; }
+
+/* ═══════ SCROLLBAR ═══════ */
+::-webkit-scrollbar { width:5px;height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* ═══════ RESPONSIVE ═══════ */
+@media(max-width:1060px) { .kpis{grid-template-columns:1fr 1fr;} .g2{grid-template-columns:1fr;} }
+@media(max-width:720px)  {
+  :root { --sw:0px; }
+  .sb { display:none; }
+  .kpis { grid-template-columns:1fr 1fr; }
+  .body { padding:14px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ██████████ SIDEBAR ██████████ -->
+<aside class="sb">
+  <div class="sb-brand">
+    <div class="sb-logo">
+      <div class="sb-icon">🍽️</div>
+      <div>
+        <div class="sb-name">Resto<span>Pro</span></div>
+        <div class="sb-tag">Restaurant Manager</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="sb-sec">ראשי</div>
+    <button class="sb-btn active" data-page="dashboard" onclick="go('dashboard')">
+      <span class="sb-ico">📊</span> דשבורד
+    </button>
+    <div class="sb-sec">ניהול</div>
+    <button class="sb-btn" data-page="expenses" onclick="go('expenses')">
+      <span class="sb-ico">💰</span> מעקב הוצאות
+    </button>
+    <button class="sb-btn" data-page="orders" onclick="go('orders')">
+      <span class="sb-ico">🛒</span> הזמנות ספקים
+    </button>
+    <button class="sb-btn" data-page="suppliers" onclick="go('suppliers')">
+      <span class="sb-ico">🚚</span> ספקים
+    </button>
+    <div class="sb-sec">מערכת</div>
+    <button class="sb-btn" data-page="settings" onclick="go('settings')">
+      <span class="sb-ico">⚙️</span> הגדרות
+    </button>
+  </nav>
+
+  <div class="sb-foot">
+    <div class="api-dot" id="apiDot"></div>
+    <span class="api-lbl" id="apiLbl">Claude API לא מוגדר</span>
+  </div>
+</aside>
+
+<!-- ██████████ MAIN ██████████ -->
+<div class="main">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="tb-crumb">RestoPro &rsaquo; <b id="pgName">דשבורד</b></div>
+    <div class="tb-date" id="tDate"></div>
+  </header>
+
+  <div class="body">
+
+    <!-- API Banner -->
+    <div class="banner" id="apiBanner">
+      🔑&nbsp;נדרש מפתח Claude API לניתוח תמונות תפריט.
+      <a onclick="go('settings')">הגדר עכשיו →</a>
+      <button class="btn btn-ghost btn-sm" style="margin-right:auto;padding:3px 8px" onclick="this.closest('.banner').remove()">✕</button>
+    </div>
+
+    <!-- ════ DASHBOARD ════ -->
+    <div class="page active" id="page-dashboard">
+      <div class="ph">
+        <div>
+          <div class="ph-t">שלום, ברוך הבא 👋</div>
+          <div class="ph-s">סיכום פעילות המסעדה שלך</div>
+        </div>
+        <div class="ph-r">
+          <button class="btn btn-gold" onclick="go('expenses');setTimeout(openExpModal,80)">+ הוצאה חדשה</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-bar gold"></div>
+          <div class="kpi-icon">💰</div>
+          <div class="kpi-val" id="kM">₪0</div>
+          <div class="kpi-label">הוצאות החודש</div>
+          <div class="kpi-sub ks-gold" id="kMsub">—</div>
+        </div>
+        <div class="kpi"><div class="kpi-bar green"></div>
+          <div class="kpi-icon">📅</div>
+          <div class="kpi-val" id="kD">₪0</div>
+          <div class="kpi-label">הוצאות היום</div>
+          <div class="kpi-sub ks-green">היום</div>
+        </div>
+        <div class="kpi"><div class="kpi-bar red"></div>
+          <div class="kpi-icon">🛒</div>
+          <div class="kpi-val" id="kO">0</div>
+          <div class="kpi-label">הזמנות פתוחות</div>
+          <div class="kpi-sub ks-red">ממתינות</div>
+        </div>
+        <div class="kpi"><div class="kpi-bar blue"></div>
+          <div class="kpi-icon">🏆</div>
+          <div class="kpi-val" id="kS" style="font-size:1rem">—</div>
+          <div class="kpi-label">ספק מוביל</div>
+          <div class="kpi-sub ks-blue" id="kSa"></div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="card">
+          <div class="card-hd"><div class="card-hd-t">📈 הוצאות 6 חודשים אחרונים</div></div>
+          <div class="card-body"><canvas id="cBar" height="200"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><div class="card-hd-t">🍕 התפלגות לפי קטגוריה</div></div>
+          <div class="card-body"><canvas id="cDon" height="200"></canvas></div>
+        </div>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-top">
+          <div class="tbl-title">הוצאות אחרונות</div>
+          <button class="btn btn-out btn-sm" onclick="go('expenses')">הצג הכל →</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>תאריך</th><th>ספק</th><th>קטגוריה</th><th>תיאור</th><th>סכום</th></tr></thead>
+            <tbody id="recentBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ EXPENSES ════ -->
+    <div class="page" id="page-expenses">
+      <div class="ph">
+        <div>
+          <div class="ph-t">מעקב הוצאות 💰</div>
+          <div class="ph-s">ניהול כל ההוצאות של המסעדה</div>
+        </div>
+        <div class="ph-r">
+          <button class="btn btn-out" onclick="exportCSV()">⬇ CSV</button>
+          <button class="btn btn-gold" onclick="openExpModal()">+ הוצאה חדשה</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-top">
+          <div class="tbl-title" id="expCount">הוצאות</div>
+          <div class="tbl-filters">
+            <input type="month" class="fi" id="fMonth" onchange="renderExp()">
+            <select class="fi" id="fCat" onchange="renderExp()">
+              <option value="">כל הקטגוריות</option>
+              <option>ירקות ופירות</option><option>בשר ועוף</option>
+              <option>משקאות</option><option>מוצרי חלב</option><option>אחר</option>
+            </select>
+            <input type="text" class="fi" id="fQ" placeholder="🔍 חיפוש..." oninput="renderExp()">
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>תאריך</th><th>ספק</th><th>קטגוריה</th><th>תיאור</th><th>סכום</th><th>פעולות</th></tr></thead>
+            <tbody id="expBody"></tbody>
+          </table>
+        </div>
+        <div id="expEmpty" class="empty" style="display:none">
+          <span class="empty-i">📋</span>
+          <div class="empty-t">אין הוצאות</div>
+          <div class="empty-s">הוסף הוצאה ראשונה</div>
+          <button class="btn btn-gold" onclick="openExpModal()">+ הוצאה חדשה</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ ORDERS ════ -->
+    <div class="page" id="page-orders">
+      <div class="ph">
+        <div>
+          <div class="ph-t">הזמנות ספקים 🛒</div>
+          <div class="ph-s">הזמנה ידנית או ניתוח תפריט עם AI</div>
+        </div>
+        <div class="ph-r">
+          <button class="btn btn-out" onclick="openAIOrder()">📷 הזמנה מתמונה</button>
+          <button class="btn btn-gold" onclick="openManualOrder()">+ הזמנה ידנית</button>
+        </div>
+      </div>
+      <div class="ord-grid" id="ordGrid"></div>
+      <div id="ordEmpty" class="empty" style="display:none">
+        <span class="empty-i">🛒</span>
+        <div class="empty-t">אין הזמנות עדיין</div>
+        <div class="empty-s">צור הזמנה ידנית או העלה תמונת תפריט</div>
+        <button class="btn btn-gold" onclick="openManualOrder()">+ הזמנה ידנית</button>
+      </div>
+    </div>
+
+    <!-- ════ SUPPLIERS ════ -->
+    <div class="page" id="page-suppliers">
+      <div class="ph">
+        <div>
+          <div class="ph-t">ניהול ספקים 🚚</div>
+          <div class="ph-s">כל הספקים של המסעדה</div>
+        </div>
+        <button class="btn btn-gold" onclick="openSupModal()">+ ספק חדש</button>
+      </div>
+      <div class="sup-grid" id="supGrid"></div>
+      <div id="supEmpty" class="empty" style="display:none">
+        <span class="empty-i">🚚</span>
+        <div class="empty-t">אין ספקים עדיין</div>
+        <div class="empty-s">הוסף ספק ראשון</div>
+        <button class="btn btn-gold" onclick="openSupModal()">+ ספק חדש</button>
+      </div>
+    </div>
+
+    <!-- ════ SETTINGS ════ -->
+    <div class="page" id="page-settings">
+      <div class="ph">
+        <div>
+          <div class="ph-t">הגדרות ⚙️</div>
+          <div class="ph-s">מפתח API והגדרות מערכת</div>
+        </div>
+      </div>
+      <div class="set-wrap">
+        <div class="set-card">
+          <div class="set-ct">🤖 Claude API</div>
+          <div class="set-cd">נדרש לניתוח תמונות תפריט. המפתח נשמר בדפדפן בלבד.</div>
+          <div class="fg">
+            <label class="fl">מפתח API</label>
+            <input type="password" class="fc" id="apiIn" placeholder="sk-ant-api...">
+          </div>
+          <button class="btn btn-gold" onclick="saveKey()">שמור מפתח</button>
+          <div class="toast" id="keyToast">✓ נשמר בהצלחה!</div>
+        </div>
+        <div class="set-card">
+          <div class="set-ct">🤖 מודל</div>
+          <div class="set-cd">המודל המשמש לניתוח תמונות תפריט</div>
+          <input class="fc" value="claude-sonnet-4-6" readonly style="opacity:.5">
+        </div>
+        <div class="set-card">
+          <div class="set-ct">🗑️ איפוס נתונים</div>
+          <div class="set-cd">מחק את כל הנתונים — פעולה בלתי הפיכה.</div>
+          <button class="btn btn-red" onclick="nukeData()">מחק הכל</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- body -->
+</div><!-- main -->
+</div><!-- wrap -->
+
+<!-- ██████████ MODALS ██████████ -->
+
+<!-- Expense Modal -->
+<div class="overlay" id="ovExp">
+  <div class="modal">
+    <div class="m-hd">
+      <div class="m-title" id="expModalTitle">הוצאה חדשה</div>
+      <button class="m-x" onclick="cm('ovExp')">✕</button>
+    </div>
+    <div class="m-body">
+      <input type="hidden" id="eEditId">
+      <div class="fr">
+        <div class="fg"><label class="fl">תאריך <span class="r">*</span></label><input type="date" class="fc" id="eDate"></div>
+        <div class="fg"><label class="fl">סכום ₪ <span class="r">*</span></label><input type="number" class="fc" id="eAmt" placeholder="0.00" min="0" step="0.01"></div>
+      </div>
+      <div class="fg">
+        <label class="fl">ספק <span class="r">*</span></label>
+        <input type="text" class="fc" id="eSupp" placeholder="שם הספק" list="dlSupp">
+        <datalist id="dlSupp"></datalist>
+      </div>
+      <div class="fg">
+        <label class="fl">קטגוריה</label>
+        <select class="fc" id="eCat">
+          <option>ירקות ופירות</option><option>בשר ועוף</option>
+          <option>משקאות</option><option>מוצרי חלב</option><option>אחר</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">תיאור</label><input type="text" class="fc" id="eDesc" placeholder="תיאור קצר..."></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-out" onclick="cm('ovExp')">ביטול</button>
+      <button class="btn btn-gold" onclick="saveExp()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Order Modal -->
+<div class="overlay" id="ovMan">
+  <div class="modal lg">
+    <div class="m-hd">
+      <div class="m-title">הזמנה ידנית</div>
+      <button class="m-x" onclick="cm('ovMan')">✕</button>
+    </div>
+    <div class="m-body">
+      <div class="fr">
+        <div class="fg">
+          <label class="fl">ספק <span class="r">*</span></label>
+          <input type="text" class="fc" id="manSupp" list="dlSupp2">
+          <datalist id="dlSupp2"></datalist>
+        </div>
+        <div class="fg"><label class="fl">תאריך</label><input type="date" class="fc" id="manDate"></div>
+      </div>
+      <div class="fg">
+        <label class="fl">פריטים</label>
+        <div id="manItems"></div>
+        <button class="btn btn-out btn-sm" onclick="addManRow()" style="margin-top:7px">+ הוסף פריט</button>
+      </div>
+      <div style="text-align:left;font-weight:700;font-size:.9rem;margin-top:5px" id="manTot">סה"כ: ₪0</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-out" onclick="cm('ovMan')">ביטול</button>
+      <button class="btn btn-out" onclick="saveManOrder('draft')">💾 טיוטה</button>
+      <button class="btn btn-gold" onclick="saveManOrder('sent')">✉️ שלח</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI Order Modal -->
+<div class="overlay" id="ovAI">
+  <div class="modal lg">
+    <div class="m-hd">
+      <div class="m-title">🤖 הזמנה לפי ניתוח תמונה</div>
+      <button class="m-x" onclick="cm('ovAI')">✕</button>
+    </div>
+    <div class="m-body">
+      <div class="fg">
+        <label class="fl">ספק</label>
+        <input type="text" class="fc" id="aiSupp" list="dlSupp3">
+        <datalist id="dlSupp3"></datalist>
+      </div>
+      <div class="upz" id="upZone" style="margin-bottom:11px">
+        <input type="file" id="menuFile" accept="image/*" onchange="prevImg(this)">
+        <div class="upz-i">📷</div>
+        <div class="upz-t">לחץ להעלאת תמונת תפריט ספק</div>
+        <div class="upz-cta">JPG · PNG · WEBP</div>
+      </div>
+      <img id="prevPic" style="display:none;max-width:100%;border-radius:10px;margin-bottom:11px;border:1px solid var(--border)">
+      <button class="btn btn-gold" id="analyzeBtn" onclick="runAI()" disabled
+              style="width:100%;justify-content:center;margin-bottom:13px">
+        <div class="spin"></div><span class="lbl">✨ נתח עם Claude AI</span>
+      </button>
+      <div id="aiRes" style="display:none">
+        <label class="fl" style="margin-bottom:7px">פריטים שזוהו – ערוך לפי הצורך:</label>
+        <div id="aiList"></div>
+        <div style="text-align:left;font-weight:700;font-size:.9rem;margin-top:8px" id="aiTot">סה"כ: ₪0</div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-out" onclick="cm('ovAI')">ביטול</button>
+      <button class="btn btn-gold" id="aiConfirm" onclick="confirmAIOrder()" style="display:none">✅ אשר הזמנה</button>
+    </div>
+  </div>
+</div>
+
+<!-- Supplier Modal -->
+<div class="overlay" id="ovSup">
+  <div class="modal">
+    <div class="m-hd">
+      <div class="m-title" id="supModalTitle">ספק חדש</div>
+      <button class="m-x" onclick="cm('ovSup')">✕</button>
+    </div>
+    <div class="m-body">
+      <input type="hidden" id="supEditId">
+      <div class="fg"><label class="fl">שם הספק <span class="r">*</span></label><input type="text" class="fc" id="sName" placeholder="שם הספק"></div>
+      <div class="fr">
+        <div class="fg">
+          <label class="fl">קטגוריה</label>
+          <select class="fc" id="sCat">
+            <option>ירקות ופירות</option><option>בשר ועוף</option>
+            <option>משקאות</option><option>מוצרי חלב</option><option>אחר</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">טלפון</label><input type="tel" class="fc" id="sPhone" placeholder="050-0000000"></div>
+      </div>
+      <div class="fg"><label class="fl">איש קשר</label><input type="text" class="fc" id="sContact" placeholder="שם איש קשר"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-out" onclick="cm('ovSup')">ביטול</button>
+      <button class="btn btn-gold" onclick="saveSup()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════
+   STATE
+═══════════════════════════════════════ */
+let DB = { expenses:[], orders:[], suppliers:[], apiKey:'' };
+
+function loadDB() {
+  const raw = localStorage.getItem('restopro_v3');
+  if (raw) { DB = JSON.parse(raw); }
+  else seed();
+}
+
+function saveDB() { localStorage.setItem('restopro_v3', JSON.stringify(DB)); }
+
+function daysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
+}
+function monthAgo(d) {
+  const dt = new Date(); dt.setMonth(dt.getMonth()-1); dt.setDate(d);
+  return dt.toISOString().split('T')[0];
+}
+
+function seed() {
+  DB.suppliers = [
+    {id:1,name:'ירקי הכרמל',   category:'ירקות ופירות',phone:'050-1234567',contact:'יוסי לוי'},
+    {id:2,name:'כרמל בשרים',   category:'בשר ועוף',   phone:'052-9876543',contact:'דוד כהן'},
+    {id:3,name:'אל-גאל משקאות',category:'משקאות',     phone:'054-5557777',contact:'מירי אברהם'},
+    {id:4,name:'טבע גבינות',   category:'מוצרי חלב',  phone:'053-4443333',contact:'שרה לוי'},
+  ];
+  DB.expenses = [
+    {id:1,  date:daysAgo(0),  supplier:'ירקי הכרמל',   category:'ירקות ופירות',desc:'עגבניות ומלפפונים',amount:420},
+    {id:2,  date:daysAgo(1),  supplier:'כרמל בשרים',   category:'בשר ועוף',   desc:'אנטריקוט וחזה עוף', amount:2200},
+    {id:3,  date:daysAgo(2),  supplier:'אל-גאל משקאות',category:'משקאות',     desc:'שתייה קלה ומיצים',  amount:680},
+    {id:4,  date:daysAgo(4),  supplier:'טבע גבינות',   category:'מוצרי חלב',  desc:'גבינות ושמנת',      amount:540},
+    {id:5,  date:daysAgo(6),  supplier:'ירקי הכרמל',   category:'ירקות ופירות',desc:'פירות עונה',        amount:310},
+    {id:6,  date:daysAgo(8),  supplier:'כרמל בשרים',   category:'בשר ועוף',   desc:'כבש טרי',           amount:1800},
+    {id:7,  date:daysAgo(10), supplier:'אל-גאל משקאות',category:'משקאות',     desc:'בירה ויין',         amount:950},
+    {id:8,  date:daysAgo(12), supplier:'ירקי הכרמל',   category:'ירקות ופירות',desc:'ירקות שורש',        amount:280},
+    {id:9,  date:monthAgo(5), supplier:'כרמל בשרים',   category:'בשר ועוף',   desc:'הזמנה חודשית',      amount:3100},
+    {id:10, date:monthAgo(10),supplier:'ירקי הכרמל',   category:'ירקות ופירות',desc:'ירקות עלים',        amount:1200},
+    {id:11, date:monthAgo(15),supplier:'אל-גאל משקאות',category:'משקאות',     desc:'סודה',              amount:430},
+    {id:12, date:monthAgo(20),supplier:'טבע גבינות',   category:'מוצרי חלב',  desc:'חלב ומוצריו',       amount:780},
+  ];
+  DB.orders = [
+    {id:1,supplier:'ירקי הכרמל',   date:daysAgo(3),status:'received',
+     items:[{name:'עגבניות',qty:10,unit:'ק"ג',price:8,total:80},{name:'מלפפונים',qty:5,unit:'ק"ג',price:6,total:30}],total:110},
+    {id:2,supplier:'כרמל בשרים',   date:daysAgo(1),status:'sent',
+     items:[{name:'אנטריקוט',qty:8,unit:'ק"ג',price:120,total:960},{name:'חזה עוף',qty:10,unit:'ק"ג',price:35,total:350}],total:1310},
+    {id:3,supplier:'אל-גאל משקאות',date:daysAgo(0),status:'draft',
+     items:[{name:'קולה 1.5L',qty:24,unit:'בקבוקים',price:5,total:120}],total:120},
+  ];
+  saveDB();
+}
+
+/* ═══════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════ */
+const pgNames = {dashboard:'דשבורד',expenses:'מעקב הוצאות',orders:'הזמנות ספקים',suppliers:'ספקים',settings:'הגדרות'};
+
+function go(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sb-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector(`[data-page="${name}"]`)?.classList.add('active');
+  document.getElementById('pgName').textContent = pgNames[name];
+  if (name === 'dashboard') renderDash();
+  if (name === 'expenses')  renderExp();
+  if (name === 'orders')    renderOrders();
+  if (name === 'suppliers') renderSuppliers();
+}
+
+/* ═══════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════ */
+let chartBar, chartDon;
+
+function renderDash() {
+  const today    = new Date().toISOString().split('T')[0];
+  const thisM    = today.slice(0,7);
+  const lastM    = (() => { const d=new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
+  const mExp     = DB.expenses.filter(e => e.date.startsWith(thisM));
+  const lmExp    = DB.expenses.filter(e => e.date.startsWith(lastM));
+  const dExp     = DB.expenses.filter(e => e.date === today);
+  const openOrd  = DB.orders.filter(o => o.status !== 'received');
+
+  const mTot  = mExp.reduce((s,e) => s+e.amount, 0);
+  const lmTot = lmExp.reduce((s,e) => s+e.amount, 0);
+  const dTot  = dExp.reduce((s,e) => s+e.amount, 0);
+
+  // top supplier this month
+  const bySup = {};
+  mExp.forEach(e => bySup[e.supplier] = (bySup[e.supplier]||0) + e.amount);
+  const top   = Object.entries(bySup).sort((a,b) => b[1]-a[1])[0];
+  const diff  = lmTot ? Math.round((mTot - lmTot) / lmTot * 100) : 0;
+
+  document.getElementById('kM').textContent    = '₪' + mTot.toLocaleString('he-IL');
+  document.getElementById('kD').textContent    = '₪' + dTot.toLocaleString('he-IL');
+  document.getElementById('kO').textContent    = openOrd.length;
+  document.getElementById('kS').textContent    = top?.[0] || '—';
+  document.getElementById('kSa').textContent   = top ? '₪' + top[1].toLocaleString() : '';
+  document.getElementById('kMsub').textContent = diff > 0 ? `↑ ${diff}% מחודש שעבר` : diff < 0 ? `↓ ${Math.abs(diff)}% מחודש שעבר` : 'זהה לחודש שעבר';
+
+  // Bar chart – 6 months
+  const labels=[], vals=[];
+  for (let i=5; i>=0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const k = d.toISOString().slice(0,7);
+    labels.push(d.toLocaleDateString('he-IL',{month:'short',year:'2-digit'}));
+    vals.push(DB.expenses.filter(e => e.date.startsWith(k)).reduce((s,e) => s+e.amount, 0));
+  }
+  if (chartBar) chartBar.destroy();
+  chartBar = new Chart(document.getElementById('cBar'), {
+    type: 'bar',
+    data: { labels, datasets:[{ data:vals, backgroundColor:'rgba(245,158,11,.75)', borderRadius:7, borderSkipped:false }]},
+    options: { responsive:true, plugins:{ legend:{display:false} },
+      scales:{ y:{ beginAtZero:true, ticks:{ callback:v=>'₪'+v.toLocaleString(), color:'#A1A1AA' }, grid:{color:'#F4F4F5'} },
+               x:{ ticks:{color:'#A1A1AA'}, grid:{display:false} } } }
+  });
+
+  // Doughnut – categories
+  const catMap = {};
+  mExp.forEach(e => catMap[e.category] = (catMap[e.category]||0) + e.amount);
+  if (chartDon) chartDon.destroy();
+  if (Object.keys(catMap).length) {
+    chartDon = new Chart(document.getElementById('cDon'), {
+      type: 'doughnut',
+      data: { labels: Object.keys(catMap), datasets:[{
+        data: Object.values(catMap),
+        backgroundColor:['#10B981','#EF4444','#3B82F6','#F59E0B','#8B5CF6'],
+        borderWidth: 3, borderColor:'#FFFFFF'
+      }]},
+      options:{ responsive:true, cutout:'62%',
+        plugins:{ legend:{ position:'bottom', labels:{ color:'#52525B', padding:12, font:{size:11} } } } }
+    });
+  }
+
+  // Recent expenses
+  const recent = [...DB.expenses].sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
+  document.getElementById('recentBody').innerHTML = recent.map(e => `
+    <tr>
+      <td>${fmt(e.date)}</td>
+      <td><b>${e.supplier}</b></td>
+      <td>${catTag(e.category)}</td>
+      <td style="color:var(--text3);font-size:.79rem">${e.desc||'—'}</td>
+      <td class="amt">₪${e.amount.toLocaleString('he-IL')}</td>
+    </tr>`).join('');
+}
+
+/* ═══════════════════════════════════════
+   EXPENSES
+═══════════════════════════════════════ */
+function renderExp() {
+  const m   = document.getElementById('fMonth').value;
+  const cat = document.getElementById('fCat').value;
+  const q   = document.getElementById('fQ').value.toLowerCase();
+  let data  = [...DB.expenses].sort((a,b) => b.date.localeCompare(a.date));
+  if (m)   data = data.filter(e => e.date.startsWith(m));
+  if (cat) data = data.filter(e => e.category === cat);
+  if (q)   data = data.filter(e => (e.supplier+e.desc+e.category).toLowerCase().includes(q));
+
+  document.getElementById('expCount').textContent = `${data.length} הוצאות`;
+  document.getElementById('expEmpty').style.display = data.length ? 'none' : 'block';
+  document.getElementById('expBody').innerHTML = data.map(e => `
+    <tr>
+      <td>${fmt(e.date)}</td>
+      <td><b>${e.supplier}</b></td>
+      <td>${catTag(e.category)}</td>
+      <td style="color:var(--text3);font-size:.79rem">${e.desc||'—'}</td>
+      <td class="amt">₪${e.amount.toLocaleString('he-IL')}</td>
+      <td>
+        <button class="ib" onclick="editExp(${e.id})" title="עריכה">✏️</button>
+        <button class="ib del" onclick="delExp(${e.id})" title="מחיקה">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openExpModal(id=null) {
+  fillDL('dlSupp');
+  document.getElementById('eEditId').value = id||'';
+  document.getElementById('expModalTitle').textContent = id ? 'עריכת הוצאה' : 'הוצאה חדשה';
+  if (id) {
+    const e = DB.expenses.find(x => x.id===id);
+    document.getElementById('eDate').value = e.date;
+    document.getElementById('eAmt').value  = e.amount;
+    document.getElementById('eSupp').value = e.supplier;
+    document.getElementById('eCat').value  = e.category;
+    document.getElementById('eDesc').value = e.desc||'';
+  } else {
+    document.getElementById('eDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('eAmt').value  = '';
+    document.getElementById('eSupp').value = '';
+    document.getElementById('eDesc').value = '';
+  }
+  om('ovExp');
+}
+function editExp(id) { openExpModal(id); }
+
+function saveExp() {
+  const id  = document.getElementById('eEditId').value;
+  const sup = document.getElementById('eSupp').value.trim();
+  const amt = parseFloat(document.getElementById('eAmt').value)||0;
+  const dt  = document.getElementById('eDate').value;
+  if (!sup||!amt||!dt) { alert('אנא מלא את כל שדות החובה'); return; }
+  const obj = { id:id?+id:Date.now(), date:dt, supplier:sup,
+    category:document.getElementById('eCat').value,
+    desc:document.getElementById('eDesc').value.trim(), amount:amt };
+  if (id) DB.expenses = DB.expenses.map(x => x.id===+id ? obj : x);
+  else    DB.expenses.push(obj);
+  saveDB(); cm('ovExp'); renderExp();
+}
+function delExp(id) {
+  if (!confirm('למחוק הוצאה זו?')) return;
+  DB.expenses = DB.expenses.filter(e => e.id!==id);
+  saveDB(); renderExp();
+}
+
+function exportCSV() {
+  const rows = [['תאריך','ספק','קטגוריה','תיאור','סכום']];
+  DB.expenses.forEach(e => rows.push([e.date,e.supplier,e.category,e.desc||'',e.amount]));
+  const csv = '\uFEFF' + rows.map(r=>r.join(',')).join('\n');
+  const a = Object.assign(document.createElement('a'), {href:'data:text/csv;charset=utf-8,'+encodeURIComponent(csv),download:'expenses.csv'});
+  a.click();
+}
+
+/* ═══════════════════════════════════════
+   ORDERS
+═══════════════════════════════════════ */
+function renderOrders() {
+  const sorted = [...DB.orders].sort((a,b) => b.date.localeCompare(a.date));
+  document.getElementById('ordEmpty').style.display = sorted.length ? 'none' : 'block';
+  const slbl = {draft:'טיוטה',sent:'נשלחה',received:'התקבלה'};
+  const scls = {draft:'st-draft',sent:'st-sent',received:'st-received'};
+  document.getElementById('ordGrid').innerHTML = sorted.map(o => `
+    <div class="ord-card">
+      <div class="ord-top">
+        <div>
+          <div class="ord-sup">${o.supplier}</div>
+          <div class="ord-dt">${fmt(o.date)}</div>
+        </div>
+        <span class="stag ${scls[o.status]}">${slbl[o.status]}</span>
+      </div>
+      <div>
+        ${o.items.slice(0,4).map(i=>`
+          <div class="ord-line">
+            <span>${i.name} × ${i.qty} ${i.unit||''}</span>
+            <span style="font-weight:600">₪${i.total.toLocaleString()}</span>
+          </div>`).join('')}
+        ${o.items.length>4?`<div style="font-size:.73rem;color:var(--text3);padding-top:3px">...ועוד ${o.items.length-4} פריטים</div>`:''}
+      </div>
+      <div class="ord-total">
+        <span class="ord-tl">סה"כ הזמנה</span>
+        <span class="ord-tv">₪${o.total.toLocaleString('he-IL')}</span>
+      </div>
+      <div class="ord-acts">
+        ${o.status!=='received'
+          ? `<button class="btn btn-out btn-sm" style="flex:1" onclick="markRcv(${o.id})">✓ סמן כהתקבל</button>`
+          : `<button class="btn btn-ghost btn-sm" disabled style="flex:1;color:var(--green)">✓ התקבל</button>`}
+        <button class="ib del" onclick="delOrder(${o.id})">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+function markRcv(id) { DB.orders = DB.orders.map(o => o.id===id ? {...o,status:'received'} : o); saveDB(); renderOrders(); }
+function delOrder(id) { if(!confirm('למחוק הזמנה?')) return; DB.orders=DB.orders.filter(o=>o.id!==id); saveDB(); renderOrders(); }
+
+// ── Manual Order ──
+let manRows = [];
+function openManualOrder() {
+  fillDL('dlSupp2');
+  manRows = [{name:'',qty:1,unit:'יח\'',price:0,total:0}];
+  document.getElementById('manSupp').value = '';
+  document.getElementById('manDate').value = new Date().toISOString().split('T')[0];
+  renderManRows(); om('ovMan');
+}
+function renderManRows() {
+  document.getElementById('manItems').innerHTML = manRows.map((r,i) => `
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:5px;margin-bottom:5px;align-items:center">
+      <input class="fc" style="font-size:.79rem;padding:7px 9px" placeholder="שם פריט" value="${r.name}"
+        oninput="manRows[${i}].name=this.value">
+      <input class="fc" type="number" style="font-size:.79rem;padding:7px 9px" placeholder="כמות" value="${r.qty}"
+        oninput="manRows[${i}].qty=+this.value;calcMan(${i})">
+      <input class="fc" style="font-size:.79rem;padding:7px 9px" placeholder="יחידה" value="${r.unit}"
+        oninput="manRows[${i}].unit=this.value">
+      <input class="fc" type="number" style="font-size:.79rem;padding:7px 9px" placeholder="מחיר" value="${r.price}"
+        oninput="manRows[${i}].price=+this.value;calcMan(${i})">
+      <button class="ib del" onclick="manRows.splice(${i},1);renderManRows()">✕</button>
+    </div>`).join('');
+  updManTot();
+}
+function addManRow()   { manRows.push({name:'',qty:1,unit:'יח\'',price:0,total:0}); renderManRows(); }
+function calcMan(i)    { manRows[i].total = manRows[i].qty * manRows[i].price; updManTot(); }
+function updManTot()   { document.getElementById('manTot').textContent = 'סה"כ: ₪' + manRows.reduce((s,r)=>s+r.total,0).toLocaleString('he-IL'); }
+
+function saveManOrder(status) {
+  const sup = document.getElementById('manSupp').value.trim();
+  if (!sup) { alert('אנא הזן שם ספק'); return; }
+  const items = manRows.filter(r => r.name.trim());
+  if (!items.length) { alert('הוסף לפחות פריט אחד'); return; }
+  DB.orders.push({ id:Date.now(), supplier:sup, date:document.getElementById('manDate').value,
+    status, items, total:items.reduce((s,r)=>s+r.total,0) });
+  saveDB(); cm('ovMan'); renderOrders();
+}
+
+// ── AI Order ──
+let aiRows = [];
+function openAIOrder() {
+  fillDL('dlSupp3');
+  aiRows = [];
+  document.getElementById('aiSupp').value = '';
+  document.getElementById('prevPic').style.display = 'none';
+  document.getElementById('aiRes').style.display = 'none';
+  document.getElementById('aiConfirm').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('menuFile').value = '';
+  om('ovAI');
+}
+function prevImg(inp) {
+  const f = inp.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const img = document.getElementById('prevPic');
+    img.src = e.target.result; img.style.display = 'block';
+    document.getElementById('analyzeBtn').disabled = false;
+  };
+  r.readAsDataURL(f);
+}
+async function runAI() {
+  if (!DB.apiKey) { alert('הגדר מפתח Claude API בהגדרות'); return; }
+  const f = document.getElementById('menuFile').files[0];
+  if (!f) { alert('אנא העלה תמונה'); return; }
+  const btn = document.getElementById('analyzeBtn');
+  btn.classList.add('loading'); btn.disabled = true;
+  try {
+    const b64 = await new Promise((res,rej) => {
+      const r = new FileReader();
+      r.onload  = () => res(r.result.split(',')[1]);
+      r.onerror = rej; r.readAsDataURL(f);
+    });
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':DB.apiKey,'anthropic-version':'2023-06-01'},
+      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1500,
+        messages:[{ role:'user', content:[
+          { type:'image', source:{ type:'base64', media_type:f.type, data:b64 }},
+          { type:'text',  text:'נתח את תמונת התפריט/קטלוג הספק. החזר JSON בלבד ללא markdown:\n{"items":[{"name":"שם מוצר","qty":כמות_מוצעת,"unit":"יחידה","price":מחיר}]}\nעד 15 פריטים. אם מחיר לא ידוע השתמש ב-0.' }
+        ]}]
+      })
+    });
+    if (!resp.ok) { const e=await resp.json(); throw new Error(e.error?.message||'שגיאת API'); }
+    const data = await resp.json();
+    let parsed;
+    try { parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'')); }
+    catch { const m = data.content[0].text.match(/\[[\s\S]*\]/); parsed = { items: m ? JSON.parse(m[0]) : [] }; }
+    aiRows = (parsed.items||[]).map(it => ({
+      name:it.name||'', qty:it.qty||1, unit:it.unit||'יח\'',
+      price:it.price||0, total:(it.qty||1)*(it.price||0)
+    }));
+    renderAIRows();
+    document.getElementById('aiRes').style.display = 'block';
+    document.getElementById('aiConfirm').style.display = 'inline-flex';
+  } catch(e) {
+    alert('שגיאה: ' + e.message);
+  } finally {
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
+function renderAIRows() {
+  document.getElementById('aiList').innerHTML = aiRows.map((r,i) => `
+    <div class="ai-row">
+      <input class="fc" style="font-size:.79rem;padding:7px 9px" value="${r.name}"
+        oninput="aiRows[${i}].name=this.value">
+      <input class="fc" type="number" style="font-size:.79rem;padding:7px 9px" value="${r.qty}"
+        oninput="aiRows[${i}].qty=+this.value;aiRows[${i}].total=aiRows[${i}].qty*aiRows[${i}].price;renderAIRows()">
+      <input class="fc" style="font-size:.79rem;padding:7px 9px" value="${r.unit}"
+        oninput="aiRows[${i}].unit=this.value">
+      <input class="fc" type="number" style="font-size:.79rem;padding:7px 9px" value="${r.price}"
+        oninput="aiRows[${i}].price=+this.value;aiRows[${i}].total=aiRows[${i}].qty*aiRows[${i}].price;renderAIRows()">
+      <button class="ib del" onclick="aiRows.splice(${i},1);renderAIRows()">✕</button>
+    </div>`).join('');
+  document.getElementById('aiTot').textContent = 'סה"כ: ₪' + aiRows.reduce((s,r)=>s+r.total,0).toLocaleString('he-IL');
+}
+function confirmAIOrder() {
+  const sup = document.getElementById('aiSupp').value.trim() || 'ספק לא ידוע';
+  const items = aiRows.filter(r => r.name.trim());
+  DB.orders.push({ id:Date.now(), supplier:sup, date:new Date().toISOString().split('T')[0],
+    status:'draft', items, total:items.reduce((s,r)=>s+r.total,0) });
+  saveDB(); cm('ovAI'); go('orders');
+}
+
+/* ═══════════════════════════════════════
+   SUPPLIERS
+═══════════════════════════════════════ */
+function renderSuppliers() {
+  const emo = {'ירקות ופירות':'🥦','בשר ועוף':'🥩','משקאות':'🥤','מוצרי חלב':'🧀','אחר':'📦'};
+  document.getElementById('supEmpty').style.display = DB.suppliers.length ? 'none' : 'block';
+  document.getElementById('supGrid').innerHTML = DB.suppliers.map(s => {
+    const total = DB.expenses.filter(e=>e.supplier===s.name).reduce((sum,e)=>sum+e.amount,0);
+    return `
+    <div class="sup-card">
+      <div class="sup-av">${emo[s.category]||'📦'}</div>
+      <div class="sup-name">${s.name}</div>
+      <div style="margin-top:4px">${catTag(s.category)}</div>
+      ${s.phone   ? `<div class="sup-meta" style="margin-top:7px">📞 ${s.phone}</div>` : ''}
+      ${s.contact ? `<div class="sup-meta">👤 ${s.contact}</div>` : ''}
+      <div class="sup-tot">
+        <span class="sup-tl">סה"כ קניות</span>
+        <span class="sup-tv">₪${total.toLocaleString('he-IL')}</span>
+      </div>
+      <div class="sup-acts">
+        <button class="btn btn-out btn-sm" style="flex:1" onclick="editSup(${s.id})">✏️ ערוך</button>
+        <button class="ib del" onclick="delSup(${s.id})">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openSupModal(id=null) {
+  document.getElementById('supEditId').value = id||'';
+  document.getElementById('supModalTitle').textContent = id ? 'עריכת ספק' : 'ספק חדש';
+  if (id) {
+    const s = DB.suppliers.find(x=>x.id===id);
+    document.getElementById('sName').value    = s.name;
+    document.getElementById('sCat').value     = s.category;
+    document.getElementById('sPhone').value   = s.phone||'';
+    document.getElementById('sContact').value = s.contact||'';
+  } else {
+    ['sName','sPhone','sContact'].forEach(id => document.getElementById(id).value='');
+  }
+  om('ovSup');
+}
+function editSup(id) { openSupModal(id); }
+function saveSup() {
+  const id   = document.getElementById('supEditId').value;
+  const name = document.getElementById('sName').value.trim();
+  if (!name) { alert('אנא הזן שם ספק'); return; }
+  const obj = { id:id?+id:Date.now(), name, category:document.getElementById('sCat').value,
+    phone:document.getElementById('sPhone').value.trim(), contact:document.getElementById('sContact').value.trim() };
+  if (id) DB.suppliers = DB.suppliers.map(x => x.id===+id ? obj : x);
+  else    DB.suppliers.push(obj);
+  saveDB(); cm('ovSup'); renderSuppliers();
+}
+function delSup(id) {
+  if (!confirm('למחוק ספק זה?')) return;
+  DB.suppliers = DB.suppliers.filter(s => s.id!==id);
+  saveDB(); renderSuppliers();
+}
+
+/* ═══════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════ */
+function saveKey() {
+  DB.apiKey = document.getElementById('apiIn').value.trim();
+  saveDB(); updateApiStatus();
+  const t = document.getElementById('keyToast');
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2500);
+}
+function nukeData() {
+  if (!confirm('מחיקת כל הנתונים? פעולה בלתי הפיכה!')) return;
+  localStorage.removeItem('restopro_v3'); location.reload();
+}
+
+/* ═══════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════ */
+function om(id)  { document.getElementById(id).classList.add('open'); }
+function cm(id)  { document.getElementById(id).classList.remove('open'); }
+
+function fmt(s) {
+  if (!s) return '—';
+  return new Date(s+'T12:00:00').toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+
+function catTag(cat) {
+  const m = {'ירקות ופירות':'tag-v','בשר ועוף':'tag-m','משקאות':'tag-d','מוצרי חלב':'tag-l'};
+  return `<span class="tag ${m[cat]||'tag-o'}">${cat}</span>`;
+}
+
+function updateApiStatus() {
+  const ok = !!DB.apiKey;
+  document.getElementById('apiDot').className = 'api-dot' + (ok?' ok':'');
+  document.getElementById('apiLbl').textContent = ok ? 'Claude API מחובר ✓' : 'Claude API לא מוגדר';
+  if (ok) document.getElementById('apiBanner')?.remove();
+}
+
+function fillDL(id) {
+  document.getElementById(id).innerHTML = DB.suppliers.map(s=>`<option value="${s.name}">`).join('');
+}
+
+/* ═══════════════════════════════════════
+   INIT
+═══════════════════════════════════════ */
+loadDB();
+document.getElementById('tDate').textContent =
+  new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+document.getElementById('fMonth').value = new Date().toISOString().slice(0,7);
+document.getElementById('apiIn').value  = DB.apiKey||'';
+updateApiStatus();
+renderDash();
+
+// close modal on overlay click
+document.querySelectorAll('.overlay').forEach(ov =>
+  ov.addEventListener('click', e => { if (e.target===ov) ov.classList.remove('open'); })
+);
+</script>
+</body>
+</html>
