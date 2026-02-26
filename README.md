@@ -69,6 +69,8 @@ repo/
 
 #---
 
+#---
+
 ## 🧠 איך מנוע ה-AI עובד (LLM Workflow)
 
 האפליקציה משתמשת ב-Claude Vision API כדי לחלץ פריטים מתמונת תפריט ספק ולהחזיר פלט מובנה (Structured Output) בפורמט JSON.
